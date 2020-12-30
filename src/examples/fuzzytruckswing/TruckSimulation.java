@@ -87,12 +87,16 @@ public class TruckSimulation extends Thread
     private static final Color OFF_COLOR = new Color(204, 204, 204);
     // matrix of colors that show degreee of matching for a rule that fires
     private static final Color matchColors[] = new Color[256];
+    private static final Color obsmatchColors[] = new Color[256];
 
     static
     {   // use colors from white to pink to deep red to show degree of rule matching
         int i;
         for (i = 0; i < 256; i++)
+        {
             matchColors[i] = new Color(255, i, i);
+            obsmatchColors[i] = new Color(i, 255, i);
+        }
 
         // display 4 digits precision for angle changes
         nf.setMaximumFractionDigits(4);
@@ -168,11 +172,11 @@ public class TruckSimulation extends Thread
             xposFzsets[3] = new TriangleFuzzySet(50.0, 60.0, 70.0);
             xposFzsets[4] = new LFuzzySet(65.0, 90.0, new LeftLinearFunction());
 
-            obsxposFzsets[0] = new RFuzzySet(-0.20, 0.10, new RightLinearFunction());
+            obsxposFzsets[0] = new TriangleFuzzySet(-0.50, -0.15, 0.10);
             obsxposFzsets[1] = new TriangleFuzzySet(0.10, 0.25, 0.40);
             obsxposFzsets[2] = new TriangleFuzzySet(0.40, 0.50, 0.65);
             obsxposFzsets[3] = new TriangleFuzzySet(0.65, 0.80, 0.95);
-            obsxposFzsets[4] = new LFuzzySet(0.95, 1.30, new LeftLinearFunction());
+            obsxposFzsets[4] = new TriangleFuzzySet(0.95, 1.30, 1.60);
             // Input fuzzy variable for the truck's x coordinate position
             xpos = new FuzzyVariable("Xpos", 0, 100, "");
             for (i = 0; i < xposTerms.length; i++)
@@ -187,7 +191,7 @@ public class TruckSimulation extends Thread
                 changePhi.addTerm(changePhiTerms[i], changePhiFzSets[i]);
 
             //设置obs的set
-            obsxpos = new FuzzyVariable("obsXpos", -0.45, 1.65, "");
+            obsxpos = new FuzzyVariable("obsXpos", -0.65, 1.80, "");
             for (i = 0; i < xposTerms.length; i++)
                 obsxpos.addTerm(xposTerms[i], obsxposFzsets[i]);
             // Input fuzzy variable for the truck's angular position
@@ -257,6 +261,7 @@ public class TruckSimulation extends Thread
         parent.JLabelSimulationStatus.setText(" ");
 
         // reset background color of rule matrix buttons
+        parent.resetConclusionButtonsBackground(OFF_COLOR);
         parent.resetConclusionButtonsBackground(OFF_COLOR);
     }
 
@@ -334,10 +339,12 @@ public class TruckSimulation extends Thread
     {
         return CurrentConclusions[i][j];
     }
+
     public String getobsConclusionExpression(int i, int j)
     {
         return obsCurrentConclusions[i][j];
     }
+
     public void setConclusionExpression(String s, int i, int j)
     {
         CurrentConclusions[i][j] = s;
@@ -350,9 +357,9 @@ public class TruckSimulation extends Thread
         int m, i = 0, j = 0;
         double angleInRadians;
         double changePhiValue;
-
+        boolean isObs = false;
         ResetConclusionButtonsThread rcbThread = new ResetConclusionButtonsThread();
-        SetConclusionButtonColorThread scbcThread = new SetConclusionButtonColorThread();
+        SetConclusionButtonColorThread scbcThread = new SetConclusionButtonColorThread(7);
         ViewAreaPaintComponentThread vapcThread = new ViewAreaPaintComponentThread();
 
         while (true)
@@ -388,7 +395,6 @@ public class TruckSimulation extends Thread
                     changePhiValue = getConclusion(7, Xt, Phit, xpos, phi, theRules);
                     // compute the results of the rule firing for the current xpos and phi values.
 
-
 //                    // new values based on the alogorithm for finding the new
 //                    // angle (see Kosko's book).
 //                    // globalResult could be null if we take out some rules
@@ -411,7 +417,7 @@ public class TruckSimulation extends Thread
                         int height = parent.viewArea.list.get(k)[3];
                         int[][] obs = {{xa, ya}, {xa + width, ya}, {xa + width, ya + height}, {xa, ya + height}};
 //                        System.out.println(Arrays.deepToString(obs));
-                        if (SAT(coords, obs))
+                        if (isObs || SAT(coords, obs))
                         {
                             System.out.println("碰撞");
                             //TODO: 可以写判断算法了,还是有一点问题
@@ -420,6 +426,14 @@ public class TruckSimulation extends Thread
                             angleInRadians = (Phit + changePhiValue) * PIBY180;
                             xb = Speed * Math.cos(angleInRadians);
                             yb = Speed * Math.sin(angleInRadians);
+                            if(isObs)
+                            {
+                                isObs=false;
+                            }
+                            else
+                            {
+                                isObs = true;
+                            }
                             flag = true;
                             break;
                         }
@@ -429,17 +443,19 @@ public class TruckSimulation extends Thread
                         Phit += changePhiValue;
                         Xt += x;
                         Yt -= y;
-                        beforex = x;
-                        beforey = y;
+                        isObs=false;
                     }
                     else
                     {
                         System.out.println("避障专用路线");
                         Phit += changePhiValue;
                         //TODO:这里是有效的,不过系数是否2需要改进
-                        Xt -= 2 * x;
+                        if(isObs)
+                        {
+                            Xt -= 2 * x;
+                            Yt += 2 * y;
+                        }
                         Xt += xb;
-                        Yt += 2 * y;
                         Yt -= yb;
                     }
 
@@ -493,7 +509,7 @@ public class TruckSimulation extends Thread
         FuzzyValueVector result = null;
         FuzzyValue globalResult = null;
         double changePhiValue = 0;
-        SetConclusionButtonColorThread scbcThread = new SetConclusionButtonColorThread();
+        SetConclusionButtonColorThread scbcThread = new SetConclusionButtonColorThread(length);
         try
         {
             fvvInputs.addFuzzyValue(new FuzzyValue(xpos, new TriangleFuzzySet(Xt, Xt, Xt)));
@@ -515,7 +531,13 @@ public class TruckSimulation extends Thread
                         {
                             double maxY = fv.getMaxY();
                             int colorDegree = (int) (255.0 * (1.0 - maxY));
-                            conclusionColor = matchColors[colorDegree];
+                            if(length==7)
+                            {
+                                conclusionColor = matchColors[colorDegree];
+                            }
+                            else{
+                                conclusionColor=obsmatchColors[colorDegree];
+                            }
                             conclusionI = i;
                             conclusionJ = j;
                             SwingUtilities.invokeAndWait(scbcThread);
@@ -751,10 +773,17 @@ public class TruckSimulation extends Thread
 
     class SetConclusionButtonColorThread implements Runnable
     {
+        int type;
+
+        public SetConclusionButtonColorThread(int type)
+        {
+            this.type = type;
+        }
+
         public void run()
         {
             // set background color of a rule matrix conclusion button
-            parent.setConclusionButtonBackground(conclusionI, conclusionJ, conclusionColor);
+            parent.setConclusionButtonBackground(conclusionI, conclusionJ, conclusionColor, type);
         }
     }
 

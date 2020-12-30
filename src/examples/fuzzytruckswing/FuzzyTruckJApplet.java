@@ -387,16 +387,39 @@ public class FuzzyTruckJApplet extends JApplet
         int columns = Truck.getColumns();
         // reset background color of rule matrix buttons
         for (int j = 0; j < columns; j++)
+        {
             for (int i = 0; i < rows; i++)
+            {
                 if (conclusionButtons[i][j].getBackground() != offColor)
+                {
                     conclusionButtons[i][j].setBackground(offColor);
-
+                }
+            }
+        }
+        for (int j = 0; j < 5; j++)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                if (obsconclusionLabels[i][j].getBackground() != offColor)
+                {
+                    obsconclusionLabels[i][j].setBackground(offColor);
+                }
+            }
+        }
     }
 
-    public void setConclusionButtonBackground(int i, int j, Color color)
+    public void setConclusionButtonBackground(int i, int j, Color color,int type)
     {
-        if (conclusionButtons[i][j].getBackground() != color)
-            conclusionButtons[i][j].setBackground(color);
+        if(type==7)
+        {
+            if (conclusionButtons[i][j].getBackground() != color)
+                conclusionButtons[i][j].setBackground(color);
+        }
+        else if(type==5)
+        {
+            obsconclusionLabels[i][j].setBackground(color);
+        }
+
     }
 
 
